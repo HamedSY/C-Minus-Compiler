@@ -424,19 +424,21 @@ cls = {
 
 semantic_stack = []
 output_codes = []
-temp_counter = 0
+temp_counter = 500
 label_counter = 0
 symbol_table = {}  # {id: {'type', 'address', 'size'}}
 current_scope = "global"
-current_address = 0
+current_address = 100
 
+# Track pending jumps for backpatching
+pending_jumps = {}  # {label: list_of_jump_lines}
+label_addresses = {}  # {label: address}
 
 def get_temp():
     global temp_counter
-    temp = f"T{temp_counter}"
+    temp = f"{temp_counter}"
     temp_counter += 1
     return temp
-
 
 def get_label():
     global label_counter
@@ -444,6 +446,13 @@ def get_label():
     label_counter += 1
     return label
 
+def backpatch_label(label, target_line):
+    if label in pending_jumps:
+        for line in pending_jumps[label]:
+            parts = output_codes[line].split(', ')
+            parts[-1] = str(target_line)
+            output_codes[line] = ', '.join(parts)
+        del pending_jumps[label]
 
 def code_gen(action_symbol):
     global current_address, current_scope, semantic_stack, output_codes, temp_counter, label_counter, symbol_table
@@ -452,59 +461,60 @@ def code_gen(action_symbol):
         id = semantic_stack.pop()
         var_type = semantic_stack.pop()
         if var_type == "void":
-            return  # Semantic error (handled in optional part)
+            return
         symbol_table[id] = {'type': var_type, 'address': current_address, 'scope': current_scope}
         current_address += 4
 
     elif action_symbol == "#push_num":
         num = semantic_stack.pop()
-        temp = get_temp()
-        output_codes.append(f"(ASSIGN, #{num}, , {temp})")
-        semantic_stack.append(temp)
+        semantic_stack.append(f"#{num}")
 
     elif action_symbol == "#addop":
         op2 = semantic_stack.pop()
         op1 = semantic_stack.pop()
+        op = semantic_stack.pop()
+        # Handle variables
+        if isinstance(op1, str) and op1 in symbol_table:
+            op1 = symbol_table[op1]['address']
+        if isinstance(op2, str) and op2 in symbol_table:
+            op2 = symbol_table[op2]['address']
         temp = get_temp()
-        op = semantic_stack.pop()  # '+' or '-'
         output_codes.append(f"({'ADD' if op == '+' else 'SUB'}, {op1}, {op2}, {temp})")
         semantic_stack.append(temp)
 
     elif action_symbol == "#declare_array":
-        size = int(semantic_stack.pop())  # NUM value
-        id = semantic_stack.pop()  # ID from DeclarationInitial
-        var_type = semantic_stack.pop()  # Type from DeclarationInitial
+        size = int(semantic_stack.pop())
+        id = semantic_stack.pop()
+        var_type = semantic_stack.pop()
         symbol_table[id]['type'] = 'array'
         symbol_table[id]['size'] = size
         symbol_table[id]['address'] = current_address
         current_address += 4 * size
 
     elif action_symbol == "#begin_function":
-        func_name = semantic_stack[-1]  # Assumes ID was pushed before
+        func_name = semantic_stack[-1]
         current_scope = func_name
         symbol_table[func_name] = {
             'type': 'function',
-            'return_type': semantic_stack[-2],  # TypeSpecifier from DeclarationInitial
+            'return_type': semantic_stack[-2],
             'params': [],
             'address': 0,
             'scope': 'global'
         }
-        # Reset address for local variables inside function
         current_address = 0
+        output_codes.append(f"(JP, {len(output_codes) + 1}, , )")
 
     elif action_symbol == "#end_function":
-        output_codes.append(f"(RETURN, , , )")
         current_scope = "global"
 
     elif action_symbol == "#add_param":
-        param_type = semantic_stack.pop()  # 'int'
+        param_type = semantic_stack.pop()
         param_id = semantic_stack.pop()
         is_array = False
         if semantic_stack and semantic_stack[-1] == '[]':
             semantic_stack.pop()
             is_array = True
         symbol_table[current_scope]['params'].append({'type': param_type, 'id': param_id, 'is_array': is_array})
-        # Allocate space for parameter
         symbol_table[param_id] = {
             'type': param_type,
             'address': current_address,
@@ -515,91 +525,122 @@ def code_gen(action_symbol):
 
     elif action_symbol == "#pop_expr":
         if semantic_stack:
-            semantic_stack.pop()  # Discard unused expression result
+            semantic_stack.pop()
 
     elif action_symbol == "#if_jump":
         expr_result = semantic_stack.pop()
         else_label = get_label()
         end_label = get_label()
-        output_codes.append(f"(JUMPZ, {expr_result}, , {else_label})")
-        semantic_stack.extend([else_label, end_label])
+        output_line = len(output_codes)
+        output_codes.append(f"(JPF, {expr_result}, {else_label}, )")
+        if else_label not in pending_jumps:
+            pending_jumps[else_label] = []
+        pending_jumps[else_label].append(output_line)
+        semantic_stack.extend([end_label, else_label])
 
     elif action_symbol == "#else_jump":
         end_label = semantic_stack.pop()
         else_label = semantic_stack.pop()
-        output_codes.append(f"(JUMP, , , {end_label})")
-        output_codes.append(f"(LABEL, {else_label}, , )")
+        output_line = len(output_codes)
+        output_codes.append(f"(JP, {end_label}, , )")
+        if end_label not in pending_jumps:
+            pending_jumps[end_label] = []
+        pending_jumps[end_label].append(output_line)
+        current_line = len(output_codes)
+        if else_label in label_addresses:
+            backpatch_label(else_label, current_line)
+        else:
+            label_addresses[else_label] = current_line
         semantic_stack.append(end_label)
 
     elif action_symbol == "#while_label":
         start_label = get_label()
-        output_codes.append(f"(LABEL, {start_label}, , )")
+        label_addresses[start_label] = len(output_codes)
         semantic_stack.append(start_label)
 
     elif action_symbol == "#while_jump":
         expr_result = semantic_stack.pop()
         end_label = get_label()
-        output_codes.append(f"(JUMPZ, {expr_result}, , {end_label})")
+        output_line = len(output_codes)
+        output_codes.append(f"(JPF, {expr_result}, {end_label}, )")
+        if end_label not in pending_jumps:
+            pending_jumps[end_label] = []
+        pending_jumps[end_label].append(output_line)
         start_label = semantic_stack.pop()
-        output_codes.append(f"(JUMP, , , {start_label})")
-        output_codes.append(f"(LABEL, {end_label}, , )")
+        start_line = label_addresses[start_label]
+        output_codes.append(f"(JP, {start_line}, , )")
+        end_line = len(output_codes)
+        backpatch_label(end_label, end_line)
 
     elif action_symbol == "#return_value":
         expr_val = semantic_stack.pop()
-        output_codes.append(f"(RETURN, {expr_val}, , )")
 
     elif action_symbol == "#assign":
         value = semantic_stack.pop()
-        var_addr = semantic_stack.pop()
+        equ = semantic_stack.pop()
+        var_name = semantic_stack.pop()
+        var_addr = symbol_table[var_name]['address']
         output_codes.append(f"(ASSIGN, {value}, , {var_addr})")
 
     elif action_symbol == "#assign_array":
         value = semantic_stack.pop()
-        element_addr = semantic_stack.pop()
-        output_codes.append(f"(ASSIGN, {value}, , {element_addr})")
+        index_temp = semantic_stack.pop()
+        array_addr = semantic_stack.pop()
+        offset_temp = get_temp()
+        output_codes.append(f"(MULT, {index_temp}, #4, {offset_temp})")
+        addr_temp = get_temp()
+        output_codes.append(f"(ADD, {array_addr}, {offset_temp}, {addr_temp})")
+        output_codes.append(f"(ASSIGN, {value}, , {addr_temp})")
 
     elif action_symbol == "#relop":
         op2 = semantic_stack.pop()
         op1 = semantic_stack.pop()
-        relop = semantic_stack.pop()  # '<' or '=='
+        relop = semantic_stack.pop()
+        if isinstance(op1, str) and op1 in symbol_table:
+            op1 = symbol_table[op1]['address']
+        if isinstance(op2, str) and op2 in symbol_table:
+            op2 = symbol_table[op2]['address']
         temp = get_temp()
-        output_codes.append(f"(COMPARE, {op1}, {op2}, {temp})")
-        # Assuming a flag is set for later conditional jumps
+        if relop == '<':
+            output_codes.append(f"(LT, {op1}, {op2}, {temp})")
+        elif relop == '==':
+            output_codes.append(f"(EQ, {op1}, {op2}, {temp})")
         semantic_stack.append(temp)
 
     elif action_symbol == "#mulop":
         op2 = semantic_stack.pop()
         op1 = semantic_stack.pop()
-        mulop = semantic_stack.pop()  # '*' or '/'
+        mulop = semantic_stack.pop()
+        if isinstance(op1, str) and op1 in symbol_table:
+            op1 = symbol_table[op1]['address']
+        if isinstance(op2, str) and op2 in symbol_table:
+            op2 = symbol_table[op2]['address']
         temp = get_temp()
         output_codes.append(f"({'MULT' if mulop == '*' else 'DIV'}, {op1}, {op2}, {temp})")
         semantic_stack.append(temp)
 
     elif action_symbol == "#negate":
         operand = semantic_stack.pop()
+        if isinstance(operand, str) and operand in symbol_table:
+            operand = symbol_table[operand]['address']
         temp = get_temp()
         output_codes.append(f"(SUB, #0, {operand}, {temp})")
         semantic_stack.append(temp)
 
     elif action_symbol == "#call_func":
         args = []
-        # Pop arguments until function name is found
-        while semantic_stack and not (isinstance(semantic_stack[-1], str) and semantic_stack[-1] in symbol_table):
+        while semantic_stack and not (isinstance(semantic_stack[-1], str) and semantic_stack[-1] in symbol_table and symbol_table[semantic_stack[-1]]['type'] == 'function'):
             args.insert(0, semantic_stack.pop())
         func_name = semantic_stack.pop()
-        # Push arguments in reverse order (if needed by calling convention)
-        for arg in reversed(args):
-            output_codes.append(f"(PUSH, {arg}, , )")
+        for arg in args:
+            output_codes.append(f"(ASSIGN, {arg}, , @SP)")
+            output_codes.append("(ADD, @SP, #4, @SP)")
         temp = get_temp()
         output_codes.append(f"(CALL, {func_name}, {len(args)}, {temp})")
         semantic_stack.append(temp)
 
     elif action_symbol == "#push_arg":
-        # The expression's result is already on the stack
-        pass  # No action needed as the value is already pushed
-
-    # Additional error handling can be added for unhandled action symbols
-
+        pass
 
 non_terminals = {list(rule.keys())[0] for rule in grammar}
 
