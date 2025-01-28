@@ -10,6 +10,7 @@ Maryam Shiran 400109446
 """
 
 # Scanner
+import tables
 
 """DFA
 
@@ -97,6 +98,7 @@ class Scanner:
                     elif current_state == 7:  # Number found
                         return "NUM", "NUM", lexeme, self.current_line
                     elif current_state == 13:  # ID or keyword found
+                        tables.get_symbol_table().add_symbol(('ID', lexeme))
                         if lexeme in KEYWORDS:
                             return lexeme, "KEYWORD", lexeme, self.current_line
                         else:
@@ -334,6 +336,8 @@ from anytree import RenderTree, Node
 from code_gen import CodeGen
 
 cod_gen = CodeGen()
+tables.symbol_table.add_symbol(('ID', 'output'))
+tables.symbol_table.fetch("output").address = 5
 
 grammar = [
     {"Program": ["DeclarationList"]},
@@ -578,7 +582,8 @@ def parse():
         if top_symbol.startswith('#'):
             # Handle action symbol
             # next_symbol, next_node = stack.pop()
-            cod_gen.call(top_symbol, None)
+            # lookahead, token_type, lexeme, line_number = scanner.get_next_token()
+            cod_gen.call(top_symbol, lexeme)
             continue  # Skip input consumption
 
         if top_symbol in cls:
@@ -701,17 +706,14 @@ def write_output():
 def main():
     """Main function to run the parser."""
     parse_tree = None
-    try:
-        parse_tree = parse()
-        write_output()
-        if parse_tree:
-            print("Parsing completed successfully!")
-        else:
-            print("Parsing failed.")
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        write_syntax_errors_to_file()
+    parse_tree = parse()
+    write_output()
+    if parse_tree:
+        print("Parsing completed successfully!")
+    else:
+        print("Parsing failed.")
+    # finally:
+    #     write_syntax_errors_to_file()
 
     if parse_tree:
         with open("parse_tree.txt", "w", encoding="utf-8") as f:

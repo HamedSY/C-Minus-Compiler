@@ -44,10 +44,10 @@ class __TokenTable:
                     file.write(" ")
                 index = token.type.name.find("_")
                 token_type = (token.type.name[:index], token.type.name)[index == -1]
-                file.write(f"({token_type}, {token.lexeme})")
+                file.write(f"({token_type}, {token[1]})")
 
     def __str__(self):
-        return "\n".join([f"{line_no}:\t\t<{token.type.name},{token.lexeme}>" for line_no, token in self.tokens])
+        return "\n".join([f"{line_no}:\t\t<{token.type.name},{token[1]}>" for line_no, token in self.tokens])
 
 
 symbol_table = __SymbolTable()

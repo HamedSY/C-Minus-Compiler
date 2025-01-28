@@ -114,7 +114,7 @@ class CodeGen:
         # only when zero init is activated
         self.assembler.program_block[-1] = ""
 
-        id_record = self.find_var(self.assembler.last_id.lexeme)
+        id_record = self.find_var(self.assembler.last_id[1])
         id_record.address = len(self.assembler.program_block)
 
     def declare_id(self, token):

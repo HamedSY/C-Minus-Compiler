@@ -13,7 +13,7 @@ class IDRecord:
         self.address = address
 
     def __str__(self):
-        return f"{self.token.lexeme}:{self.address}"
+        return f"{self.token[1]}:{self.address}"
 
 
 class Scope:
@@ -24,7 +24,7 @@ class Scope:
     def append(self, token, force=False):
         if force:
             return self.__append(token)
-        id_record = self.get_IDrecord(token.lexeme)
+        id_record = self.get_IDrecord(token[1])
         if id_record:
             return id_record
         else:
@@ -37,7 +37,7 @@ class Scope:
 
     def get_IDrecord(self, lexeme):
         for record in self.stack:
-            if record.token.lexeme == lexeme:
+            if record.token[1] == lexeme:
                 return record
         if self.parent:
             return self.parent.get_IDrecord(lexeme)
@@ -50,7 +50,7 @@ class Scope:
 
 
 class __SymbolTable:
-    keyword = ["if", "else", "void", "int", "while", "break", "switch", "default", "case", "return"]
+    keyword = {"break", "else", "if", "endif", "int", "while", "return", "void"}
 
     def __init__(self):
         self.is_declaration = False
@@ -72,12 +72,12 @@ class __SymbolTable:
     def get_current_scope(self):
         return self.scopes[-1]
 
-    # def add_symbol(self, token):
-    #     if token.lexeme in self.keyword:
-    #         return Token(TokenType.KEYWORD, token.lexeme)
-    #     self.get_current_scope().append(token, self.is_declaration)
-    #     self.set_declaration(False)
-    #     return token
+    def add_symbol(self, token):
+        if token[1] in self.keyword:
+            return 'KEYWORD', token[1]
+        self.get_current_scope().append(token, self.is_declaration)
+        self.set_declaration(False)
+        return token
 
     def fetch(self, lexeme):
         return self.get_current_scope().get_IDrecord(lexeme)
