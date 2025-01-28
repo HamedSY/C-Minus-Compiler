@@ -501,7 +501,7 @@ def code_gen(action_symbol):
             'address': 0,
             'scope': 'global'
         }
-        current_address = 0
+        current_address = 100
         output_codes.append(f"(JP, {len(output_codes) + 1}, , )")
 
     elif action_symbol == "#end_function":
@@ -577,7 +577,6 @@ def code_gen(action_symbol):
 
     elif action_symbol == "#assign":
         value = semantic_stack.pop()
-        equ = semantic_stack.pop()
         var_name = semantic_stack.pop()
         var_addr = symbol_table[var_name]['address']
         output_codes.append(f"(ASSIGN, {value}, , {var_addr})")
@@ -767,7 +766,8 @@ def parse():
                 dollar_node = Node("$", parent=top_node)  # Create $ node but attach it later
 
             if top_symbol == lookahead:
-                semantic_stack.append(lexeme)
+                if token_type in ('ID', 'NUM', 'KEYWORD'):
+                    semantic_stack.append(lexeme)
 
                 if top_symbol == "$":
                     dollar_node = Node("$", parent=top_node)  # Create $ node but attach it later
