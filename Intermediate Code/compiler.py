@@ -1,13 +1,9 @@
-# Add these global variables at the top of compiler.py
-current_scope = 0
-temp_counter = 0
-label_counter = 0
-semantic_stack = []
-symbol_table = []
-output_code = []
-memory_address = 0
-
 # Scanner
+
+"""DFA
+
+
+"""
 
 # Global variables to store DFA information
 num_states = 15
@@ -326,26 +322,26 @@ predict_sets = {
 from anytree import RenderTree, Node
 
 grammar = [
-    {"Program": ["DeclarationList", "#program_end"]},
+    {"Program": ["DeclarationList"]},
     {"DeclarationList": ["Declaration", "DeclarationList"]},
     {"DeclarationList": []},
     {"Declaration": ["DeclarationInitial", "DeclarationPrime"]},
-    {"DeclarationInitial": ["TypeSpecifier", "ID", "#declare_id"]},
+    {"DeclarationInitial": ["TypeSpecifier", "ID", "#declare_var"]},
     {"DeclarationPrime": ["FunDeclarationPrime"]},
     {"DeclarationPrime": ["VarDeclarationPrime"]},
-    {"VarDeclarationPrime": [";", "#var_decl_simple"]},
-    {"VarDeclarationPrime": ["[", "NUM", "]", ";", "#var_decl_array"]},
-    {"FunDeclarationPrime": ["(", "Params", ")", "#func_begin", "CompoundStmt", "#func_end"]},
+    {"VarDeclarationPrime": [";"]},
+    {"VarDeclarationPrime": ["[", "NUM", "]", ";", "#declare_array"]},
+    {"FunDeclarationPrime": ["(", "Params", ")", "#begin_function", "CompoundStmt", "#end_function"]},
     {"TypeSpecifier": ["int"]},
     {"TypeSpecifier": ["void"]},
-    {"Params": ["int", "ID", "#param_int", "ParamPrime", "ParamList"]},
-    {"Params": ["void", "#param_void"]},
+    {"Params": ["int", "ID", "ParamPrime", "ParamList", "#add_param"]},
+    {"Params": ["void"]},
     {"ParamList": [",", "Param", "ParamList"]},
     {"ParamList": []},
     {"Param": ["DeclarationInitial", "ParamPrime"]},
-    {"ParamPrime": ["[", "]", "#param_array"]},
+    {"ParamPrime": ["[", "]"]},
     {"ParamPrime": []},
-    {"CompoundStmt": ["{", "#scope_begin", "DeclarationList", "StatementList", "}", "#scope_end"]},
+    {"CompoundStmt": ["{", "DeclarationList", "StatementList", "}"]},
     {"StatementList": ["Statement", "StatementList"]},
     {"StatementList": []},
     {"Statement": ["ExpressionStmt"]},
@@ -353,62 +349,62 @@ grammar = [
     {"Statement": ["SelectionStmt"]},
     {"Statement": ["IterationStmt"]},
     {"Statement": ["ReturnStmt"]},
-    {"ExpressionStmt": ["Expression", ";", "#expr_end"]},
-    {"ExpressionStmt": ["break", ";", "#break_stmt"]},
+    {"ExpressionStmt": ["Expression", ";", "#pop_expr"]},
+    {"ExpressionStmt": ["break", ";"]},
     {"ExpressionStmt": [";"]},
-    {"SelectionStmt": ["if", "(", "Expression", ")", "#if_start", "Statement", "ElseStmt", "#if_end"]},
+    {"SelectionStmt": ["if", "(", "Expression", ")", "#if_jump", "Statement", "ElseStmt"]},
     {"ElseStmt": ["endif"]},
     {"ElseStmt": ["else", "#else_jump", "Statement", "endif"]},
-    {"IterationStmt": ["while", "#while_start", "(", "Expression", ")", "#while_cond", "Statement", "#while_end"]},
+    {"IterationStmt": ["while", "#while_label", "(", "Expression", ")", "#while_jump", "Statement"]},
     {"ReturnStmt": ["return", "ReturnStmtPrime"]},
-    {"ReturnStmtPrime": [";", "#return_void"]},
+    {"ReturnStmtPrime": [";"]},
     {"ReturnStmtPrime": ["Expression", ";", "#return_value"]},
-    {"Expression": ["SimpleExpressionZegond", "#expr_eval"]},
-    {"Expression": ["ID", "B", "#id_expr"]},
+    {"Expression": ["SimpleExpressionZegond"]},
+    {"Expression": ["ID", "B"]},
     {"B": ["=", "Expression", "#assign"]},
-    {"B": ["[", "Expression", "]", "H", "#array_access"]},
-    {"B": ["SimpleExpressionPrime", "#expr_eval"]},
-    {"H": ["=", "Expression", "#assign"]},
-    {"H": ["G", "D", "C", "#expr_eval"]},
-    {"SimpleExpressionZegond": ["AdditiveExpressionZegond", "C", "#expr_eval"]},
-    {"SimpleExpressionPrime": ["AdditiveExpressionPrime", "C", "#expr_eval"]},
+    {"B": ["[", "Expression", "]", "H"]},
+    {"B": ["SimpleExpressionPrime"]},
+    {"H": ["=", "Expression", "#assign_array"]},
+    {"H": ["G", "D", "C"]},
+    {"SimpleExpressionZegond": ["AdditiveExpressionZegond", "C"]},
+    {"SimpleExpressionPrime": ["AdditiveExpressionPrime", "C"]},
     {"C": ["Relop", "AdditiveExpression", "#relop"]},
     {"C": []},
-    {"Relop": ["<", "#set_lt"]},
-    {"Relop": ["==", "#set_eq"]},
-    {"AdditiveExpression": ["Term", "D", "#add_sub"]},
-    {"AdditiveExpressionPrime": ["TermPrime", "D", "#add_sub"]},
-    {"AdditiveExpressionZegond": ["TermZegond", "D", "#add_sub"]},
-    {"D": ["Addop", "Term", "D", "#add_sub"]},
+    {"Relop": ["<"]},
+    {"Relop": ["=="]},
+    {"AdditiveExpression": ["Term", "D"]},
+    {"AdditiveExpressionPrime": ["TermPrime", "D"]},
+    {"AdditiveExpressionZegond": ["TermZegond", "D"]},
+    {"D": ["Addop", "Term", "#addop", "D"]},
     {"D": []},
-    {"Addop": ["+", "#set_add"]},
-    {"Addop": ["-", "#set_sub"]},
-    {"Term": ["SignedFactor", "G", "#mult_div"]},
-    {"TermPrime": ["SignedFactorPrime", "G", "#mult_div"]},
-    {"TermZegond": ["SignedFactorZegond", "G", "#mult_div"]},
-    {"G": ["Mulop", "SignedFactor", "G", "#mult_div"]},
+    {"Addop": ["+"]},
+    {"Addop": ["-"]},
+    {"Term": ["SignedFactor", "G"]},
+    {"TermPrime": ["SignedFactorPrime", "G"]},
+    {"TermZegond": ["SignedFactorZegond", "G"]},
+    {"G": ["Mulop", "SignedFactor", "#mulop", "G"]},
     {"G": []},
-    {"Mulop": ["*", "#set_mult"]},
-    {"Mulop": ["/", "#set_div"]},
-    {"SignedFactor": ["+", "Factor", "#signed_factor"]},
-    {"SignedFactor": ["-", "Factor", "#signed_factor"]},
+    {"Mulop": ["*"]},
+    {"Mulop": ["/"]},
+    {"SignedFactor": ["+", "Factor"]},
+    {"SignedFactor": ["-", "Factor", "#negate"]},
     {"SignedFactor": ["Factor"]},
     {"SignedFactorPrime": ["FactorPrime"]},
-    {"SignedFactorZegond": ["+", "Factor", "#signed_factor"]},
-    {"SignedFactorZegond": ["-", "Factor", "#signed_factor"]},
+    {"SignedFactorZegond": ["+", "Factor"]},
+    {"SignedFactorZegond": ["-", "Factor", "#negate"]},
     {"SignedFactorZegond": ["FactorZegond"]},
-    {"Factor": ["(", "Expression", ")", "#paren_expr"]},
-    {"Factor": ["ID", "VarCallPrime", "#id_factor"]},
+    {"Factor": ["(", "Expression", ")"]},
+    {"Factor": ["ID", "VarCallPrime"]},
     {"Factor": ["NUM", "#push_num"]},
-    {"VarCallPrime": ["(", "Args", ")", "#func_call"]},
+    {"VarCallPrime": ["(", "Args", ")", "#call_func"]},
     {"VarCallPrime": ["VarPrime"]},
-    {"VarPrime": ["[", "Expression", "]", "#array_access"]},
+    {"VarPrime": ["[", "Expression", "]"]},
     {"VarPrime": []},
-    {"FactorPrime": ["(", "Args", ")", "#func_call"]},
+    {"FactorPrime": ["(", "Args", ")", "#call_func"]},
     {"FactorPrime": []},
-    {"FactorZegond": ["(", "Expression", ")", "#paren_expr"]},
+    {"FactorZegond": ["(", "Expression", ")"]},
     {"FactorZegond": ["NUM", "#push_num"]},
-    {"Args": ["ArgList", "#process_args"]},
+    {"Args": ["ArgList"]},
     {"Args": []},
     {"ArgList": ["Expression", "#push_arg", "ArgListPrime"]},
     {"ArgListPrime": [",", "Expression", "#push_arg", "ArgListPrime"]},
@@ -417,33 +413,194 @@ grammar = [
 
 # columns of the parsing table
 cls = {
-    ";",
-    "break",
-    "if",
-    "endif",
-    "else",
-    "while",
-    "return",
-    "ID",
-    "NUM",
-    "<",
-    "==",
-    "+",
-    "-",
-    "*",
-    "/",
-    "(",
-    ")",
-    "[",
-    "]",
-    "{",
-    "}",
-    "int",
-    "void",
-    "=",
-    "$",
-    ","
+    ";", "break", "if", "endif", "else", "while", "return",
+    "ID", "NUM", "<", "==", "+", "-", "*", "/", "(", ")",
+    "[", "]", "{", "}", "int", "void", "=", "$", ",",
+    "#declare_var", "#declare_array", "#begin_function", "#end_function",
+    "#add_param", "#pop_expr", "#if_jump", "#else_jump", "#while_label",
+    "#while_jump", "#return_value", "#assign", "#assign_array", "#relop",
+    "#addop", "#mulop", "#negate", "#push_num", "#call_func", "#push_arg"
 }
+
+semantic_stack = []
+output_codes = []
+temp_counter = 0
+label_counter = 0
+symbol_table = {}  # {id: {'type', 'address', 'size'}}
+current_scope = "global"
+current_address = 0
+
+
+def get_temp():
+    global temp_counter
+    temp = f"T{temp_counter}"
+    temp_counter += 1
+    return temp
+
+
+def get_label():
+    global label_counter
+    label = f"L{label_counter}"
+    label_counter += 1
+    return label
+
+
+def code_gen(action_symbol):
+    global current_address, current_scope, semantic_stack, output_codes, temp_counter, label_counter, symbol_table
+
+    if action_symbol == "#declare_var":
+        id = semantic_stack.pop()
+        var_type = semantic_stack.pop()
+        if var_type == "void":
+            return  # Semantic error (handled in optional part)
+        symbol_table[id] = {'type': var_type, 'address': current_address, 'scope': current_scope}
+        current_address += 4
+
+    elif action_symbol == "#push_num":
+        num = semantic_stack.pop()
+        temp = get_temp()
+        output_codes.append(f"(ASSIGN, #{num}, , {temp})")
+        semantic_stack.append(temp)
+
+    elif action_symbol == "#addop":
+        op2 = semantic_stack.pop()
+        op1 = semantic_stack.pop()
+        temp = get_temp()
+        op = semantic_stack.pop()  # '+' or '-'
+        output_codes.append(f"({'ADD' if op == '+' else 'SUB'}, {op1}, {op2}, {temp})")
+        semantic_stack.append(temp)
+
+    elif action_symbol == "#declare_array":
+        size = int(semantic_stack.pop())  # NUM value
+        id = semantic_stack.pop()  # ID from DeclarationInitial
+        var_type = semantic_stack.pop()  # Type from DeclarationInitial
+        symbol_table[id]['type'] = 'array'
+        symbol_table[id]['size'] = size
+        symbol_table[id]['address'] = current_address
+        current_address += 4 * size
+
+    elif action_symbol == "#begin_function":
+        func_name = semantic_stack[-1]  # Assumes ID was pushed before
+        current_scope = func_name
+        symbol_table[func_name] = {
+            'type': 'function',
+            'return_type': semantic_stack[-2],  # TypeSpecifier from DeclarationInitial
+            'params': [],
+            'address': 0,
+            'scope': 'global'
+        }
+        # Reset address for local variables inside function
+        current_address = 0
+
+    elif action_symbol == "#end_function":
+        output_codes.append(f"(RETURN, , , )")
+        current_scope = "global"
+
+    elif action_symbol == "#add_param":
+        param_type = semantic_stack.pop()  # 'int'
+        param_id = semantic_stack.pop()
+        is_array = False
+        if semantic_stack and semantic_stack[-1] == '[]':
+            semantic_stack.pop()
+            is_array = True
+        symbol_table[current_scope]['params'].append({'type': param_type, 'id': param_id, 'is_array': is_array})
+        # Allocate space for parameter
+        symbol_table[param_id] = {
+            'type': param_type,
+            'address': current_address,
+            'scope': current_scope,
+            'is_array': is_array
+        }
+        current_address += 4
+
+    elif action_symbol == "#pop_expr":
+        if semantic_stack:
+            semantic_stack.pop()  # Discard unused expression result
+
+    elif action_symbol == "#if_jump":
+        expr_result = semantic_stack.pop()
+        else_label = get_label()
+        end_label = get_label()
+        output_codes.append(f"(JUMPZ, {expr_result}, , {else_label})")
+        semantic_stack.extend([else_label, end_label])
+
+    elif action_symbol == "#else_jump":
+        end_label = semantic_stack.pop()
+        else_label = semantic_stack.pop()
+        output_codes.append(f"(JUMP, , , {end_label})")
+        output_codes.append(f"(LABEL, {else_label}, , )")
+        semantic_stack.append(end_label)
+
+    elif action_symbol == "#while_label":
+        start_label = get_label()
+        output_codes.append(f"(LABEL, {start_label}, , )")
+        semantic_stack.append(start_label)
+
+    elif action_symbol == "#while_jump":
+        expr_result = semantic_stack.pop()
+        end_label = get_label()
+        output_codes.append(f"(JUMPZ, {expr_result}, , {end_label})")
+        start_label = semantic_stack.pop()
+        output_codes.append(f"(JUMP, , , {start_label})")
+        output_codes.append(f"(LABEL, {end_label}, , )")
+
+    elif action_symbol == "#return_value":
+        expr_val = semantic_stack.pop()
+        output_codes.append(f"(RETURN, {expr_val}, , )")
+
+    elif action_symbol == "#assign":
+        value = semantic_stack.pop()
+        var_addr = semantic_stack.pop()
+        output_codes.append(f"(ASSIGN, {value}, , {var_addr})")
+
+    elif action_symbol == "#assign_array":
+        value = semantic_stack.pop()
+        element_addr = semantic_stack.pop()
+        output_codes.append(f"(ASSIGN, {value}, , {element_addr})")
+
+    elif action_symbol == "#relop":
+        op2 = semantic_stack.pop()
+        op1 = semantic_stack.pop()
+        relop = semantic_stack.pop()  # '<' or '=='
+        temp = get_temp()
+        output_codes.append(f"(COMPARE, {op1}, {op2}, {temp})")
+        # Assuming a flag is set for later conditional jumps
+        semantic_stack.append(temp)
+
+    elif action_symbol == "#mulop":
+        op2 = semantic_stack.pop()
+        op1 = semantic_stack.pop()
+        mulop = semantic_stack.pop()  # '*' or '/'
+        temp = get_temp()
+        output_codes.append(f"({'MULT' if mulop == '*' else 'DIV'}, {op1}, {op2}, {temp})")
+        semantic_stack.append(temp)
+
+    elif action_symbol == "#negate":
+        operand = semantic_stack.pop()
+        temp = get_temp()
+        output_codes.append(f"(SUB, #0, {operand}, {temp})")
+        semantic_stack.append(temp)
+
+    elif action_symbol == "#call_func":
+        args = []
+        # Pop arguments until function name is found
+        while semantic_stack and not (isinstance(semantic_stack[-1], str) and semantic_stack[-1] in symbol_table):
+            args.insert(0, semantic_stack.pop())
+        func_name = semantic_stack.pop()
+        # Push arguments in reverse order (if needed by calling convention)
+        for arg in reversed(args):
+            output_codes.append(f"(PUSH, {arg}, , )")
+        temp = get_temp()
+        output_codes.append(f"(CALL, {func_name}, {len(args)}, {temp})")
+        semantic_stack.append(temp)
+
+    elif action_symbol == "#push_arg":
+        # The expression's result is already on the stack
+        pass  # No action needed as the value is already pushed
+
+    # Additional error handling can be added for unhandled action symbols
+
+
 non_terminals = {list(rule.keys())[0] for rule in grammar}
 
 # Create a Scanner
@@ -472,9 +629,8 @@ def construct_parsing_table():
             if parsing_table[non_terminal][cl] is None and cl in first_sets[non_terminal]:
                 parsing_table[non_terminal][cl] = "synch"
 
-            # Construct the parsing table
 
-
+# Construct the parsing table
 construct_parsing_table()
 
 syntax_errors = []
@@ -561,14 +717,16 @@ def parse():
         #  Terminal matches lookahead
 
         if top_symbol in cls:
+            if top_symbol.startswith('#'):
+                # Handle action symbol
+                code_gen(top_symbol)
+                continue  # Skip input consumption
+
             if top_symbol == "$":
                 dollar_node = Node("$", parent=top_node)  # Create $ node but attach it later
 
             if top_symbol == lookahead:
-                if top_symbol == "NUM":
-                    semantic_stack.append(lexeme)  # Push number value
-                elif top_symbol == "ID":
-                    semantic_stack.append(lexeme)  # Push identifier name
+                semantic_stack.append(lexeme)
 
                 if top_symbol == "$":
                     dollar_node = Node("$", parent=top_node)  # Create $ node but attach it later
@@ -624,20 +782,11 @@ def parse():
             else:
                 production = grammar[production_index]
                 rhs = list(production.values())[0]  # we Get the RHS symbols as a list of strings
-
-                # Process action symbols first
-                for symbol in rhs:
-                    if isinstance(symbol, str) and symbol.startswith('#'):
-                        code_gen(symbol)  # Strip the '#' and call code generator
-
                 if not rhs:  # handling Empty production
                     Node("epsilon", parent=top_node)
                 else:
                     child_nodes = []  # Temporarily store child nodes
                     for symbol in rhs:
-                        if isinstance(symbol, str) and symbol.startswith('#'):
-                            continue  # Skip action symbols for tree nodes
-
                         child_node = None
                         if symbol in non_terminals:
                             child_node = Node(symbol, parent=top_node)
@@ -682,188 +831,14 @@ def write_syntax_errors_to_file():
             f.write("There is no syntax error.")
 
 
-def get_temp():
-    global temp_counter
-    temp_counter += 1
-    return f"t{temp_counter}"
-
-
-def get_label():
-    global label_counter
-    label_counter += 1
-    return f"L{label_counter}"
-
-
-def allocate_memory(size=4):
-    global memory_address
-    memory_address += size
-    return memory_address - size
-
-
-# Add this class for symbol table entries
-class SymbolEntry:
-    def __init__(self, name, type_, address, scope, is_array=False, array_size=1):
-        self.name = name
-        self.type = type_
-        self.address = address
-        self.scope = scope
-        self.is_array = is_array
-        self.array_size = array_size
-
-
-def code_gen(action_symbol):
-    global current_scope, semantic_stack, symbol_table
-
-    if action_symbol == "#program_end":
-        output_code.append("(JP, @main,,)")  # Jump to main function
-        return
-
-    elif action_symbol == "#declare_id":
-        # Get type and ID from semantic stack
-        var_type = semantic_stack.pop()
-        var_name = semantic_stack.pop()
-        # Allocate memory and add to symbol table
-        address = allocate_memory()
-        symbol_table.append(SymbolEntry(var_name, var_type, address, current_scope))
-        semantic_stack.append(address)
-
-    elif action_symbol == "#var_decl_array":
-        array_size = int(semantic_stack.pop())
-        address = semantic_stack.pop()
-        # Update symbol table entry with array info
-        for entry in symbol_table:
-            if entry.address == address:
-                entry.is_array = True
-                entry.array_size = array_size
-                entry.type += "[]"
-                break
-
-    elif action_symbol == "#func_begin":
-        func_name = semantic_stack.pop()
-        # Allocate memory for return address
-        return_address = allocate_memory()
-        output_code.append(f"(ASSIGN, #{func_name}, {return_address},)")
-        current_scope += 1
-
-    elif action_symbol == "#func_end":
-        current_scope -= 1
-        # Generate return code
-        output_code.append("(JP, @RET,,)")
-
-    elif action_symbol == "#push_num":
-        num_value = semantic_stack.pop()
-        temp = get_temp()
-        output_code.append(f"(ASSIGN, #{num_value}, {temp},)")
-        semantic_stack.append(temp)
-
-    elif action_symbol == "#add_sub":
-        op2 = semantic_stack.pop()
-        op1 = semantic_stack.pop()
-        operator = semantic_stack.pop()
-        temp = get_temp()
-
-        if operator == "+":
-            output_code.append(f"(ADD, {op1}, {op2}, {temp})")
-        else:
-            output_code.append(f"(SUB, {op1}, {op2}, {temp})")
-
-        semantic_stack.append(temp)
-
-    elif action_symbol == "#mult_div":
-        op2 = semantic_stack.pop()
-        op1 = semantic_stack.pop()
-        operator = semantic_stack.pop()
-        temp = get_temp()
-
-        if operator == "*":
-            output_code.append(f"(MULT, {op1}, {op2}, {temp})")
-        else:
-            output_code.append(f"(DIV, {op1}, {op2}, {temp})")
-
-        semantic_stack.append(temp)
-
-    elif action_symbol == "#relop":
-        op2 = semantic_stack.pop()
-        op1 = semantic_stack.pop()
-        operator = semantic_stack.pop()
-        temp = get_temp()
-
-        if operator == "<":
-            output_code.append(f"(LT, {op1}, {op2}, {temp})")
-        else:
-            output_code.append(f"(EO, {op1}, {op2}, {temp})")
-
-        semantic_stack.append(temp)
-
-    elif action_symbol == "#assign":
-        value = semantic_stack.pop()
-        target = semantic_stack.pop()
-        output_code.append(f"(ASSIGN, {value}, {target},)")
-
-    elif action_symbol == "#if_start":
-        condition = semantic_stack.pop()
-        false_label = get_label()
-        semantic_stack.append(false_label)
-        output_code.append(f"(JPF, {condition}, {false_label},)")
-
-    elif action_symbol == "#else_jump":
-        false_label = semantic_stack.pop()
-        end_label = get_label()
-        output_code.append(f"(JP, {end_label},,)")
-        output_code.append(f"{false_label}:")
-        semantic_stack.append(end_label)
-
-    elif action_symbol == "#if_end":
-        end_label = semantic_stack.pop()
-        output_code.append(f"{end_label}:")
-
-    elif action_symbol == "#while_start":
-        start_label = get_label()
-        semantic_stack.append(start_label)
-        output_code.append(f"{start_label}:")
-
-    elif action_symbol == "#while_cond":
-        condition = semantic_stack.pop()
-        end_label = get_label()
-        semantic_stack.append(end_label)
-        output_code.append(f"(JPF, {condition}, {end_label},)")
-
-    elif action_symbol == "#while_end":
-        end_label = semantic_stack.pop()
-        start_label = semantic_stack.pop()
-        output_code.append(f"(JP, {start_label},,)")
-        output_code.append(f"{end_label}:")
-
-    elif action_symbol == "#func_call":
-        func_name = semantic_stack.pop()
-        temp = get_temp()
-        output_code.append(f"(ASSIGN, @{func_name}, {temp},)")
-        output_code.append(f"(JP, {temp},,)")
-
-    elif action_symbol == "#push_arg":
-        arg = semantic_stack.pop()
-        output_code.append(f"(ASSIGN, {arg}, @ARG,)")
-
-    # Add more handlers for other action symbols as needed
-
-
-# Add this function to write output to file
 def write_output():
     with open("output.txt", "w") as f:
-        for i, code in enumerate(output_code):
+        for i, code in enumerate(output_codes):
             f.write(f"{i}: {code}\n")
-
 
 def main():
     """Main function to run the parser."""
-    # Reset global states for new compilation
-    global temp_counter, label_counter, semantic_stack, output_code
-    temp_counter = 0
-    label_counter = 0
-    semantic_stack = []
-    output_code = []
     parse_tree = None
-
     try:
         parse_tree = parse()
         write_output()
