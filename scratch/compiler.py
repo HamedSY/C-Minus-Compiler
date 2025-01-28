@@ -575,12 +575,13 @@ def parse():
 
         #  Terminal matches lookahead
 
-        if top_symbol in cls:
-            if top_symbol.startswith('#'):
-                # Handle action symbol
-                cod_gen.call(top_symbol, lexeme)
-                continue  # Skip input consumption
+        if top_symbol.startswith('#'):
+            # Handle action symbol
+            # next_symbol, next_node = stack.pop()
+            cod_gen.call(top_symbol, None)
+            continue  # Skip input consumption
 
+        if top_symbol in cls:
             if top_symbol == "$":
                 dollar_node = Node("$", parent=top_node)  # Create $ node but attach it later
 
@@ -645,7 +646,10 @@ def parse():
                     child_nodes = []  # Temporarily store child nodes
                     for symbol in rhs:
                         child_node = None
-                        if symbol in non_terminals:
+                        if symbol.startswith('#'):
+                            child_nodes.append((symbol, None))
+
+                        elif symbol in non_terminals:
                             child_node = Node(symbol, parent=top_node)
                             child_nodes.append((symbol, child_node))
                         else:

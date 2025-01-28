@@ -27,7 +27,7 @@ class CodeGen:
         self.stack = StackManager(self.assembler.program_block, self.rf, self.MLD)
         self.scope = ScopeManager(self.assembler, self.stack)
 
-        self.apply_template()
+        # self.apply_template()
 
         self.routines = {"#pnum": self.pnum,
                          "#pid": self.pid,
@@ -73,19 +73,19 @@ class CodeGen:
                          "#set_exec": self.set_exec,
                          }
 
-    def call(self, routine, token=None):
+    def call(self, routine, lexeme=None):
         try:
-            self.routines[routine](token)
+            self.routines[routine](lexeme)
             # uncomment the line below for debugging , gives you a step by step view!
             # self.export("output.txt")
         except:
-            sys.stderr.write(f"error during generating code for token {token.lexeme} and routine {routine}\n")
+            sys.stderr.write(f"error during generating code for token {lexeme} and routine {routine}\n")
 
     def pid(self, token):
-        self.semantic_stack.append(self.find_var(token.lexeme).address)
+        self.semantic_stack.append(self.find_var(token).address)
 
     def pnum(self, token):
-        self.semantic_stack.append(f"#{token.lexeme}")
+        self.semantic_stack.append(f"#{token}")
 
     def pzero(self, token=None):
         self.semantic_stack.append(f"#0")
@@ -118,7 +118,7 @@ class CodeGen:
         id_record.address = len(self.assembler.program_block)
 
     def declare_id(self, token):
-        id_record = self.find_var(token.lexeme)
+        id_record = self.find_var(token)
         id_record.address = self.get_data_var()
 
         self.assembler.last_id = token
@@ -147,7 +147,7 @@ class CodeGen:
     operands = {'+': 'ADD', '-': 'SUB', '*': 'MULT', '<': 'LT', '==': 'EQ'}
 
     def op_push(self, token):
-        self.semantic_stack.append(self.operands[token.lexeme])
+        self.semantic_stack.append(self.operands[token])
 
     def hold(self, token=None):
         self.label()
