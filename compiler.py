@@ -1,10 +1,9 @@
 from anytree import RenderTree
 from Paser.parser import parse, write_syntax_errors_to_file
-from CodeGeneration.code_gen import flush_outputs
+from CodeGeneration.code_gen import write_code_gen_outputs
 
 
 def main():
-    """Main function to run the parser."""
     parse_tree = None
     try:
         parse_tree = parse()
@@ -28,7 +27,7 @@ def main():
                 i = 1
                 f.write(f"{pre}{node.name}")
 
-        flush_outputs()
+        write_code_gen_outputs()
 
 
 if __name__ == "__main__":

@@ -1,3 +1,6 @@
+from semantic_analysis import *
+
+
 generated_code = []
 # we divided memory into 3 parts. (0,5000) (5000,10000) (10000,...)
 global_section = 5000
@@ -72,21 +75,13 @@ function_call_args = []
 def get_new_stack_address(sz=1):
     global runtime_stack_ptr
     assert runtime_stack_ptr is not None
-    # interpret_code([
-    #     'ADD',
-    #     ['', '#', 4 * sz],
-    #     runtime_address_stack_ptr,
-    #     runtime_address_stack_ptr
-    # ])
     runtime_stack_ptr += sz * 4
     return runtime_stack_ptr - 4 * sz
 
 
-# not complete
 # return the address of given variable
 def get_var(line_n, pid):
     # if the given variable belongs to local variables, then return its address
-
     if pid in local_action_table:
         return local_action_table[pid]
     # if the given variable belongs to global variables, then return its address
@@ -106,11 +101,7 @@ def get_new_stack_tmp():
     return ["NA", "$", address]
 
 
-# ['array', '$', 12]
-
 def code_gen(routine_name, token, line_n):
-    # print(routine_name, token, line_n)
-    # generated_code.append(["++++++++++++++++++++++++", routine_name, token, line_n])
     global stack
     global global_action_table
     global local_action_table
@@ -120,8 +111,7 @@ def code_gen(routine_name, token, line_n):
 
     debug_mode = False
     debug_mode2 = False
-    print(stack)
-    # print(routine_name)
+
     # action symbol's subroutines
     if routine_name == 'type_specifier':
         stack.append(token)
@@ -248,16 +238,8 @@ def code_gen(routine_name, token, line_n):
             stack[-2],
             tmp
         ])
-        # tmp2 = get_new_stack_tmp()
-        # tmp[1] += '@'
-        # interpret_code([
-        #     'ASSIGN',
-        #     tmp,
-        #     tmp2
-        # ])
         stack.pop()
         stack.pop()
-        # stack.append(tmp2)
         stack.append(['int', '@$', tmp[2]])
     elif routine_name == 'assign':
         interpret_code([
@@ -279,7 +261,6 @@ def code_gen(routine_name, token, line_n):
     # Assign each argument to its corresponding parameter.
     elif routine_name == 'call_function':
         f = stack.pop()
-        # print(f)
         args = function_call_args.pop()
         args_check(f['param'], args, f['name'], line_n)
 
@@ -290,7 +271,6 @@ def code_gen(routine_name, token, line_n):
         return_address = get_new_stack_tmp()
         for arg in args:
             tmp = get_new_stack_tmp()
-            # print("-----------", arg, tmp)
             interpret_code([
                 'ASSIGN',
                 arg,
@@ -425,7 +405,7 @@ def code_gen(routine_name, token, line_n):
         generated_code.append(["-------------------------{}".format(runtime_stack_ptr), routine_name, token, line_n])
 
 
-def flush_outputs():
+def write_code_gen_outputs():
     semantic_errors_list = get_errors_list()
 
     semantic_errors_file = open("semantic_errors.txt", 'w')
@@ -447,59 +427,3 @@ def flush_outputs():
 
     semantic_errors_file.close()
     output_file.close()
-
-
-semantic_errors_list = []
-
-
-def get_errors_list():
-    return semantic_errors_list
-
-
-# return a semantic error when we reached a "break" outside a repeat block
-def break_semantic_error(linen):
-    semantic_errors_list.append(
-        "#{} : Semantic Error! No 'repeat ... until' found for 'break'.".format(linen)
-    )
-
-
-def void_type_semantic_check(linen, tp, pid):
-    global semantic_errors_list
-    if tp == 'void':
-        semantic_errors_list.append(
-            "#{} : Semantic Error! Illegal type of void for '{}'.".format(linen, pid)
-        )
-
-
-# return a semantic error when we reached an undefined variable
-def scoping_error(linen, pid):
-    global semantic_errors_list
-    semantic_errors_list.append(
-        "#{} : Semantic Error! '{}' is not defined.".format(linen, pid)
-    )
-
-
-# return a semantic error when there is type mismatch between operands
-def type_mismatch_check(first_arg, second_arg, line_n):
-    if first_arg != 'NA' and second_arg != 'NA' and first_arg != second_arg:
-        semantic_errors_list.append(
-            "#{} : Semantic Error! Type mismatch in operands, Got {} instead of {}.".format(line_n, first_arg,
-                                                                                            second_arg)
-        )
-        return 'NA'
-    return first_arg
-
-
-# return a semantic error when there is a type mismatch between parameters and arguments of a function
-def args_check(expected_args, input_args, fname, line_n):
-    if len(expected_args) != len(input_args):
-        semantic_errors_list.append(
-            "#{} : Semantic Error! Mismatch in numbers of arguments of '{}'.".format(line_n, fname)
-        )
-    for i, (a, b) in enumerate(zip(expected_args, input_args)):
-        b = b[0]
-        if b != 'NA' and a != b:
-            semantic_errors_list.append(
-                "#{} : Semantic Error! Mismatch in type of argument {} of '{}'. Expected '{}' but got '{}' instead.".format(
-                    line_n, i + 1, fname, a, b)
-            )
