@@ -1,5 +1,4 @@
-import dfa
-
+from General import dfa
 
 # Initialize output structures
 tokens = []
