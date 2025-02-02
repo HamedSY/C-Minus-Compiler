@@ -1,6 +1,6 @@
 from General.dicts import first_sets, follow_sets, predict_sets
 from General.grammar import grammar
-from scanner import Scanner
+from Scanner.scanner import Scanner
 
 from anytree import RenderTree, Node
 
