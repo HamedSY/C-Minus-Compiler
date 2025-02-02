@@ -1,5 +1,5 @@
 first_sets = {
-    'Program': ['int', 'void', 'ε'],
+    'Program': ['$', 'int', 'void', 'ε'],
     'DeclarationList': ['int', 'void', 'ε'],
     'Declaration': ['int', 'void'],
     'DeclarationInitial': ['int', 'void'],

@@ -1,9 +1,9 @@
 from General.dicts import first_sets, follow_sets, predict_sets
 from General.grammar import grammar
 from Scanner.scanner import Scanner
+from CodeGeneration.code_gen import code_gen, interpret_code, get_var
 
-from anytree import RenderTree, Node
-
+from anytree import Node
 
 # columns of the parsing table
 cls = {
@@ -70,12 +70,13 @@ construct_parsing_table()
 syntax_errors = []
 
 
-def panic_mode_recovery(stack, lookahead, line_number, top_symbol=None, top_node=None, token_type=None, lexeme=None):
+def panic_mode_recovery(parsstack, lookahead, line_number, top_symbol=None, top_node=None, token_type=None,
+                        lexeme=None):
     # panic mode will diagnose the agenda along with documenting the correspong error. later based on the agenda, the correct action will be done.
 
     # reaching end of the input, but having the stack still non-empty
 
-    if lookahead == "$" and len(stack) > 1:
+    if lookahead == "$" and len(parsstack) > 1:
         syntax_errors.append(f"#{line_number} : syntax error, Unexpected EOF")
         return lookahead, top_symbol, top_node, token_type, lexeme, "EOF"
 
@@ -107,7 +108,7 @@ def parse():
     """LL(1) Table-driven Parser with Panic Mode error handling."""
     root = Node("Program")  # Root of the parse tree
     # stack will contain pairs, where the first element of each pair is the node's name and the second one is it's adress.
-    stack = [("$", None), ("Program", root)]  # Stack holds tuples: (symbol, corresponding tree node)
+    parsstack = [("$", None), ("Program", root)]  # Stack holds tuples: (symbol, corresponding tree node)
     lookahead, token_type, lexeme, line_number = scanner.get_next_token()  # Get the first token
     agenda = None
     dollar_node = None  # Placeholder for the $ node
@@ -118,27 +119,50 @@ def parse():
 
     # we implement the logic stated on page 6 of the lecture note 5
 
-    while stack:
+    code_gen('type_specifier', 'void', -1)
+    code_gen('put_id', 'output', -1)
+    code_gen('fun_declaration', None, -1)
+    code_gen('type_specifier', 'int', -1)
+    code_gen('put_id', 'a', -1)
+    code_gen('param_type_n_array', None, -1)
+    code_gen('save_stack_frame', None, -1)
+    interpret_code([
+        'PRINT',
+        get_var(-1, 'a')
+    ])
+    code_gen('fun_declaration_end', None, -1)
+
+    while parsstack:
 
         if flag == 0:
-            top_symbol, top_node = stack.pop()
+            top_symbol, top_node = parsstack.pop()
 
         # as you see below, based on the agenda we make differnt desicions. details can be found on page 16th of the lecture note 5
         if flag == 1:
 
             if agenda == "EOF":
-                while stack:
-                    top_node.parent = None
-                    top_symbol, top_node = stack.pop()
+                # print("top symbol:",top_symbol )
+                # print("look a head ",lookahead )
+                # print("parsstack", parsstack)
+                top_node.parent = None
+                while parsstack:
+                    top_symbol, top_node = parsstack.pop()
+                    if top_symbol.startswith('#'):
+                        code_gen(top_symbol[1:], lexeme, line_number)
+                    else:
+                        if (len(parsstack) == 0):
+                            break
+                        top_node.parent = None
+
                 return root
 
             elif agenda == "non-terminal insert":
                 top_node.parent = None
-                top_symbol, top_node = stack.pop()
+                top_symbol, top_node = parsstack.pop()
 
             elif agenda == "terminal insert":
                 top_node.parent = None
-                top_symbol, top_node = stack.pop()
+                top_symbol, top_node = parsstack.pop()
 
             elif agenda == "lookahead skip":
                 lookahead, token_type, lexeme, line_number = scanner.get_next_token()
@@ -149,6 +173,13 @@ def parse():
             flag = 0
 
         #  Terminal matches lookahead
+
+        if top_symbol.startswith('#'):
+            # Handle action symbol
+            # next_symbol, next_node = stack.pop()
+            # lookahead, token_type, lexeme, line_number = scanner.get_next_token()
+            code_gen(top_symbol[1:], lexeme, line_number)
+            continue  # Skip input consumption
 
         if top_symbol in cls:
             if top_symbol == "$":
@@ -168,7 +199,7 @@ def parse():
                     break
 
                 # Pass to panic mode recovery if terminal doesn't match
-                lookahead, top_symbol, top_node, token_type, lexeme, agenda = panic_mode_recovery(stack, lookahead,
+                lookahead, top_symbol, top_node, token_type, lexeme, agenda = panic_mode_recovery(parsstack, lookahead,
                                                                                                   line_number,
                                                                                                   top_symbol, top_node,
                                                                                                   token_type, lexeme)
@@ -176,7 +207,7 @@ def parse():
                 continue
 
 
-        # Non-terminal 
+        # Non-terminal
         elif top_symbol in parsing_table and lookahead in parsing_table[top_symbol]:
 
             production_index = parsing_table[top_symbol][lookahead]
@@ -185,7 +216,7 @@ def parse():
 
             if production_index is None:
 
-                lookahead, top_symbol, top_node, token_type, lexeme, agenda = panic_mode_recovery(stack, lookahead,
+                lookahead, top_symbol, top_node, token_type, lexeme, agenda = panic_mode_recovery(parsstack, lookahead,
                                                                                                   line_number,
                                                                                                   top_symbol, top_node,
                                                                                                   token_type, lexeme)
@@ -197,7 +228,7 @@ def parse():
             elif production_index == "synch":
 
                 # Pass to panic mode recovery if the production is "synch"
-                lookahead, top_symbol, top_node, token_type, lexeme, agenda = panic_mode_recovery(stack, lookahead,
+                lookahead, top_symbol, top_node, token_type, lexeme, agenda = panic_mode_recovery(parsstack, lookahead,
                                                                                                   line_number,
                                                                                                   top_symbol, top_node,
                                                                                                   token_type, lexeme)
@@ -215,7 +246,10 @@ def parse():
                     child_nodes = []  # Temporarily store child nodes
                     for symbol in rhs:
                         child_node = None
-                        if symbol in non_terminals:
+                        if symbol.startswith('#'):
+                            child_nodes.append((symbol, None))
+
+                        elif symbol in non_terminals:
                             child_node = Node(symbol, parent=top_node)
                             child_nodes.append((symbol, child_node))
                         else:
@@ -224,12 +258,12 @@ def parse():
 
                     # Push symbols onto the stack in reverse order for parsing
                     for symbol, child_node in reversed(child_nodes):
-                        stack.append((symbol, child_node))
+                        parsstack.append((symbol, child_node))
 
         #  No valid production
         else:
 
-            lookahead, top_symbol, top_node, token_type, lexeme, agenda = panic_mode_recovery(stack, lookahead,
+            lookahead, top_symbol, top_node, token_type, lexeme, agenda = panic_mode_recovery(parsstack, lookahead,
                                                                                               line_number)
             flag = 1
             continue
@@ -256,33 +290,3 @@ def write_syntax_errors_to_file():
                 f.write(error)
         else:
             f.write("There is no syntax error.")
-
-
-def main():
-    """Main function to run the parser."""
-    parse_tree = None
-    try:
-        parse_tree = parse()
-        if parse_tree:
-            print("Parsing completed successfully!")
-        else:
-            print("Parsing failed.")
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        write_syntax_errors_to_file()
-
-    if parse_tree:
-        with open("parse_tree.txt", "w", encoding="utf-8") as f:
-            i = 0
-
-            # iterating over the tree to print it in the file
-            for pre, _, node in RenderTree(parse_tree):
-                if i != 0:
-                    f.write(f"\n")
-                i = 1
-                f.write(f"{pre}{node.name}")
-
-
-if __name__ == "__main__":
-    main()
