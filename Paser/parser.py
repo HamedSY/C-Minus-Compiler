@@ -1,7 +1,7 @@
 from General.dicts import first_sets, follow_sets, predict_sets
 from General.grammar import grammar
 from Scanner.scanner import Scanner
-from CodeGeneration.code_gen import code_gen, interpret_code, get_var
+from CodeGeneration.code_gen import code_gen, handle_code, get_variable
 
 from anytree import Node
 
@@ -126,9 +126,9 @@ def parse():
     code_gen('put_id', 'a', -1)
     code_gen('param_type_n_array', None, -1)
     code_gen('save_stack_frame', None, -1)
-    interpret_code([
+    handle_code([
         'PRINT',
-        get_var(-1, 'a')
+        get_variable(-1, 'a')
     ])
     code_gen('fun_declaration_end', None, -1)
 
