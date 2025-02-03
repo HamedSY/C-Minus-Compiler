@@ -1,4 +1,4 @@
-from semantic_analysis import *
+from CodeGeneration.semantic_analysis import *
 
 
 generated_code = []
@@ -200,7 +200,6 @@ def code_gen(routine_name, token, line_n):
     # apply the operation, which has pushed into stack before, to operands
     elif routine_name == 'do_operation':
         tmp = get_new_stack_tmp()
-        # print(stack[-3:])
         res = type_mismatch_check(stack[-1][0], stack[-3][0], line_n)
         interpret_code([
             stack[-2],
@@ -389,7 +388,6 @@ def code_gen(routine_name, token, line_n):
         stack.append(['', '', len(generated_code)])
         repeat.append([])
     elif routine_name == 'while':
-        print(stack)
         interpret_code([
             "JP",
             stack.pop(),
