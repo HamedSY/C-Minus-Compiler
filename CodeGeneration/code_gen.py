@@ -5,10 +5,10 @@ generated_code = []
 # we divided memory into 3 parts. (0,5000) (5000,10000) (10000,...)
 global_section = 5000
 stack_section = 10000
-global_section_ptr = global_section
+global_section_pointer = global_section
 
 
-def variable_interpret(var, i, stay_with_address=False):
+def handle_variable(var, i, stay_with_address=False):
     assert var[1] not in ['#@', '@#']
     # if variable var is in the stack and we have its address based on stack frame, then we calculate its global address.
     if '$' in var[1]:
@@ -29,24 +29,24 @@ def variable_interpret(var, i, stay_with_address=False):
     return var[1] + str(var[2])
 
 
-def interpret_code(code):
+def handle_code(code):
     code = code.copy()
     gen_code = [code[0]]
     for i in range(1, len(code)):
-        gen_code.append(variable_interpret(code[i], i - 1))
+        gen_code.append(handle_variable(code[i], i - 1))
     generated_code.append(gen_code)
 
 
 def get_new_global_address(sz=1):
-    global global_section_ptr
-    global_section_ptr += 4 * sz
-    return global_section_ptr - 4 * sz
+    global global_section_pointer
+    global_section_pointer += 4 * sz
+    return global_section_pointer - 4 * sz
 
 
 # return free global address to use it as a temp variable
 def get_new_global_tmp():
     address = get_new_global_address()
-    interpret_code([
+    handle_code([
         'ASSIGN',
         ['', '#', stack_section],
         ['', '', address]
@@ -80,7 +80,7 @@ def get_new_stack_address(sz=1):
 
 
 # return the address of given variable
-def get_var(line_n, pid):
+def get_variable(line_n, pid):
     # if the given variable belongs to local variables, then return its address
     if pid in local_action_table:
         return local_action_table[pid]
@@ -140,8 +140,8 @@ def code_gen(routine_name, token, line_n):
             tmp = get_new_stack_tmp()
             generated_code.append([
                 'ASSIGN',
-                variable_interpret(['', '$', address], 1, stay_with_address=True),
-                variable_interpret(tmp, 2)
+                handle_variable(['', '$', address], 1, stay_with_address=True),
+                handle_variable(tmp, 2)
             ])
             local_action_table[pid] = ["array", "$", tmp[2]]
         else:
@@ -188,20 +188,20 @@ def code_gen(routine_name, token, line_n):
         code_gen('call_function', None, -2)
     elif routine_name == "save_stack_frame":
         saved_stack_frame = runtime_stack_ptr
-        interpret_code(["ASSIGN",
-                        runtime_address_stack_frame,
-                        ['', '@', runtime_address_stack_ptr[2]]])
-        interpret_code(["ASSIGN", runtime_address_stack_ptr, runtime_address_stack_frame])
-        interpret_code(["SUB",
-                        runtime_address_stack_frame,
-                        ['', '#', runtime_stack_ptr],
-                        runtime_address_stack_frame])
+        handle_code(["ASSIGN",
+                     runtime_address_stack_frame,
+                     ['', '@', runtime_address_stack_ptr[2]]])
+        handle_code(["ASSIGN", runtime_address_stack_ptr, runtime_address_stack_frame])
+        handle_code(["SUB",
+                     runtime_address_stack_frame,
+                     ['', '#', runtime_stack_ptr],
+                     runtime_address_stack_frame])
         get_new_stack_tmp()
     # apply the operation, which has pushed into stack before, to operands
     elif routine_name == 'do_operation':
         tmp = get_new_stack_tmp()
         res = type_mismatch_check(stack[-1][0], stack[-3][0], line_n)
-        interpret_code([
+        handle_code([
             stack[-2],
             stack[-3],
             stack[-1],
@@ -228,10 +228,10 @@ def code_gen(routine_name, token, line_n):
             stack.append('LT')
     # push ID token and its line into stack
     elif routine_name == 'pid':
-        stack.append(get_var(line_n, token))
+        stack.append(get_variable(line_n, token))
     elif routine_name == 'array_index':
         tmp = get_new_stack_tmp()
-        interpret_code([
+        handle_code([
             'ADD',
             stack[-1],
             stack[-2],
@@ -241,7 +241,7 @@ def code_gen(routine_name, token, line_n):
         stack.pop()
         stack.append(['int', '@$', tmp[2]])
     elif routine_name == 'assign':
-        interpret_code([
+        handle_code([
             'ASSIGN',
             stack[-1],
             stack[-2]
@@ -270,24 +270,24 @@ def code_gen(routine_name, token, line_n):
         return_address = get_new_stack_tmp()
         for arg in args:
             tmp = get_new_stack_tmp()
-            interpret_code([
+            handle_code([
                 'ASSIGN',
                 arg,
                 tmp
             ])
-        interpret_code([
+        handle_code([
             'ADD',
             ['', '#', runtime_stack_ptr],
             runtime_address_stack_frame,
             runtime_address_stack_ptr
         ])
-        interpret_code([
+        handle_code([
             'ASSIGN',
             ['', '', 0],
             return_address
         ])
         generated_code[-1][1] = '#{}'.format(len(generated_code) + 1)
-        interpret_code([
+        handle_code([
             'JP',
             ['', '', f['address']]
         ])
@@ -296,54 +296,54 @@ def code_gen(routine_name, token, line_n):
         runtime_stack_ptr = tmp2
     # adjust stack frame address and jump to where we called the function
     elif routine_name == 'return_void':
-        interpret_code([
+        handle_code([
             'ADD',
             runtime_address_stack_frame,
             ['', '#', 4],
             runtime_address_stack_ptr
         ])
-        interpret_code([
+        handle_code([
             'ASSIGN',
             ['', '$', 4],
             reserved_global_vars[3]
         ])
-        interpret_code(["ASSIGN",
-                        ['', '$', saved_stack_frame],
-                        runtime_address_stack_frame
-                        ])
+        handle_code(["ASSIGN",
+                     ['', '$', saved_stack_frame],
+                     runtime_address_stack_frame
+                     ])
         if debug_mode:
             generated_code.append(['PRINT', 5000])
             generated_code.append(['PRINT', 5004])
-        interpret_code([
+        handle_code([
             'JP',
             ['', '@', reserved_global_vars[3][2]]
         ])
     # adjust stack frame and assign return value(which is in the cell 4 of stack) to the global var which has been considered for the return value
     elif routine_name == 'return_value':
-        interpret_code([
+        handle_code([
             'ASSIGN',
             stack.pop(),
             ['', '$', 0]
         ])
-        interpret_code([
+        handle_code([
             'ADD',
             runtime_address_stack_frame,
             ['', '#', 4],
             runtime_address_stack_ptr
         ])
-        interpret_code([
+        handle_code([
             'ASSIGN',
             ['', '$', 4],
             reserved_global_vars[3]
         ])
-        interpret_code(["ASSIGN",
-                        ['', '$', saved_stack_frame],
-                        runtime_address_stack_frame
-                        ])
+        handle_code(["ASSIGN",
+                     ['', '$', saved_stack_frame],
+                     runtime_address_stack_frame
+                     ])
         if debug_mode:
             generated_code.append(['PRINT', 5000])
             generated_code.append(['PRINT', 5004])
-        interpret_code([
+        handle_code([
             'JP',
             ['', '@', reserved_global_vars[3][2]]
         ])
@@ -351,7 +351,7 @@ def code_gen(routine_name, token, line_n):
         stack.pop()
     # if we have reached a break out of repeat block then detect it as a semantic error.otherwise, add it to the current repeat block array
     elif routine_name == 'save_break':
-        interpret_code([
+        handle_code([
             "JP",
             ['', '', 0],
         ])
@@ -361,7 +361,7 @@ def code_gen(routine_name, token, line_n):
             repeat[-1].append(len(generated_code) - 1)
     # add JPF command and fill it with appropriate addrees later
     elif routine_name == 'save':
-        interpret_code([
+        handle_code([
             "JPF",
             stack.pop(),  # stack(top)
             ['', '', 0],
@@ -376,7 +376,7 @@ def code_gen(routine_name, token, line_n):
 
     elif routine_name == 'jpf_save':
         generated_code[stack.pop()[2]][2] = len(generated_code) + 1  # i+1
-        interpret_code([
+        handle_code([
             "JP",
             ['', '', 0],
         ])
@@ -388,7 +388,7 @@ def code_gen(routine_name, token, line_n):
         stack.append(['', '', len(generated_code)])
         repeat.append([])
     elif routine_name == 'while':
-        interpret_code([
+        handle_code([
             "JP",
             stack.pop(),
         ])
